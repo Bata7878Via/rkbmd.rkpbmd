@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem RKBMD & RKPBMD - Validasi SKPD Konawe</title>
+    <style>
+        :root {
+            --primary-orange: #FF6600;
+            --white-bg: #FFFFFF;
+            --dark-text: #2D3E50;
+            --light-grey: #F4F6F7;
+            --danger-red: #D32F2F;
+        }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: var(--light-grey); color: var(--dark-text); padding: 20px 10px; margin: 0; }
+        .container { max-width: 650px; background: var(--white-bg); padding: 30px; margin: 0 auto; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-top: 6px solid var(--primary-orange); }
+        h2 { text-align: center; color: var(--primary-orange); margin-top: 0; margin-bottom: 5px; }
+        p.desc { text-align: center; font-size: 13px; color: #7F8C8D; margin-bottom: 25px; }
+        .form-group { margin-bottom: 18px; }
+        label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 14px; }
+        input, select, textarea { width: 100%; padding: 10px; border: 1px solid #BDC3C7; border-radius: 5px; box-sizing: border-box; font-size: 14px; }
+        input:focus, select:focus, textarea:focus { border-color: var(--primary-orange); outline: none; }
+        .row-search { display: flex; gap: 10px; }
+        .btn-tarik { background-color: var(--dark-text); color: white; border: none; padding: 0 20px; border-radius: 5px; cursor: pointer; font-weight: 600; }
+        .btn-tarik:hover { background-color: var(--primary-orange); }
+        .btn-kirim { width: 100%; background-color: var(--primary-orange); color: white; border: none; padding: 12px; font-size: 16px; font-weight: bold; border-radius: 5px; cursor: pointer; margin-top: 15px; }
+        .btn-kirim:hover { background-color: #E05300; }
+        .status-box { font-size: 13px; margin-top: 6px; font-weight: 500; }
+        .readonly-field { background-color: #EAEDED; color: #566573; cursor: not-allowed; }
+        .session-box { background: #EBF5FB; padding: 15px; border-left: 4px solid #3498DB; margin-bottom: 20px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>USULAN RKBMD / RKPBMD KONAWE</h2>
+    <p class="desc">Sistem Validasi Kepemilikan Aset SKPD Terintegrasi Atisisbada</p>
+    
+    <!-- SIMULASI IDENTITAS LOGIN USER SKPD -->
+    <div class="session-box">
+        <label for="user_skpd" style="color: #2980B9;">🏢 login info: Aktif Sebagai SKPD</label>
+        <select id="user_skpd" onchange="updateSkpdAktif()">
+            <option value="12.01.01">Dinas Pendidikan dan Kebudayaan (Kode: 12.01.01)</option>
+            <option value="12.01.02">Dinas Kesehatan (Kode: 12.01.02)</option>
+            <option value="12.01.03">Badan Pengelola Keuangan dan Aset Daerah (Kode: 12.01.03)</option>
+        </select>
+    </div>
+
+    <form id="formRkpbmd" onsubmit="prosesKirim(event)">
+        <!-- Input Kode Barang -->
+        <div class="form-group">
+            <label for="kode_barang">Kode Barang / Nomor Registrasi Aset</label>
+            <div class="row-search">
+                <input type="text" id="kode_barang" placeholder="Masukkan Kode Barang... (Contoh: 1.3.2.05.003)" required>
+                <button type="button" class="btn-tarik" onclick="tarikDanValidasiAset()">Tarik Data</button>
+            </div>
+            <div id="notif_status" class="status-box" style="color: #7F8C8D;">Silakan tarik data aset untuk divalidasi oleh sistem.</div>
+        </div>
+
+        <!-- Output Otomatis dari API Atisisbada -->
+        <div class="form-group">
+            <label for="nama_barang">Nama Barang</label>
+            <input type="text" id="nama_barang" class="readonly-field" readonly placeholder="Otomatis dari Atisisbada...">
+        </div>
+
+        <div class="form-group">
+            <label for="skpd_pemilik">SKPD Pemilik Aset (Data Atisisbada)</label>
+            <input type="text" id="skpd_pemilik" class="readonly-field" readonly placeholder="Otomatis mengecek kode pemilik...">
+        </div>
+
+        <hr style="border: 0; border-top: 1px dashed #BDC3C7; margin: 25px 0;">
+
+        <!-- Form Usulan Pemeliharaan (Baru terbuka jika lolos validasi) -->
+        <div class="form-group">
+            <label for="jenis_usulan">Jenis Pengusulan</label>
+            <select id="jenis_usulan" required disabled class="readonly-field">
+                <option value="">-- Pilih Jenis Usulan --</option>
+                <option value="RKBMD">RKBMD (Pengadaan Barang Baru)</option>
+                <option value="RKPBMD">RKPBMD (Pemeliharaan Barang Rusak)</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="rincian">Rincian Usulan / Keterangan Kebutuhan</label>
+            <textarea id="rincian" rows="3" placeholder="Jelaskan kebutuhan pemeliharaan atau pengadaan aset..." required disabled class="readonly-field"></textarea>
+        </div>
+
+        <button type="submit" id="btnSubmit" class="btn-kirim" disabled style="background-color: #BDC3C7; cursor: not-allowed;">Kirim Usulan</button>
+    </form>
+</div>
+
+<script>
+// Fungsi yang dijalankan saat simulasi pilihan SKPD diubah
+function updateSkpdAktif() {
+    resetForm();
+    document.getElementById('notif_status').innerText = "SKPD aktif diubah. Silakan tarik ulang data aset.";
+    document.getElementById('notif_status').style.color = "#7F8C8D";
+}
+
+function tarikDanValidasiAset() {
+    const inputKode = document.getElementById('kode_barang').value.trim();
+    const skpdUser = document.getElementById('user_skpd').value;
+    const infoNotif = document.getElementById('notif_status');
+    
+    if(inputKode === "") {
+        alert("Harap masukkan kode barang terlebih dahulu.");
+        return;
+    }
+
+    infoNotif.innerText = "Mengecek kepemilikan aset ke Cloud Atisisbada...";
+    infoNotif.style.color = var(--primary-orange);
+
+    // URL API Cloud Atisisbada Anda
+    const urlAsli = `https://atisisbada.id{inputKode}`;
+    const urlProxy = `https://allorigins.win{encodeURIComponent(urlAsli)}`;
+
+    fetch(urlProxy)
+        .then(response => response.json())
+        .then(data => {
+            // --- SIMULASI PENGUJIAN FILTER VALIDASI SKPD ---
+            // Pada data asli Atisisbada, setiap barang memiliki properti kode SKPD/Lokasi pemiliknya.
+            // Di sini kita buat simulasi pintar: Jika digit akhir kode barang bernilai ganjil/genap, kita mapping ke SKPD berbeda.
+            
+            let skpdPemilikAset = "";
+            let namaAset = "Laptop ASUS ExpertBook Core i5";
+            
+            // Logika simulasi kepemilikan barang berdasarkan input kode untuk demo proteksi
+            if (inputKode.endsWith("1") || inputKode.endsWith("3")) {
+                skpdPemilikAset = "12.01.01"; // Milik Dinas Pendidikan
+            } else if (inputKode.endsWith("2") || inputKode.endsWith("4")) {
+                skpdPemilikAset = "12.01.02"; // Milik Dinas Kesehatan
+            } else {
+                skpdPemilikAset = "12.01.03"; // Milik BPKAD
+            }
+
+            // PROSES VALIDASI UTAMA: Membandingkan SKPD Pengguna dengan SKPD Aset
+            if (skpdPemilikAset === skpdUser) {
+                // JIKA COCOK -> Buka Akses Form
+                document.getElementById('nama_barang').value = namaAset;
+                document.getElementById('skpd_pemilik').value = "COCOK - Aset Sah Milik Instansi Anda";
+                
+                infoNotif.innerText = "✔️ Validasi Sukses: Aset ini terdaftar di bawah SKPD Anda. Silakan isi form usulan.";
+                infoNotif.style.color = "green";
+                
+                bukaAksesForm(true);
+            } else {
+                // JIKA TIDAK COCOK -> Kunci Form dan Beri Peringatan Keras
+                document.getElementById('nama_barang').value = namaAset;
+                document.getElementById('skpd_pemilik').value = "⚠️ ILEGAL - Kode Pemilik Aset: " + skpdPemilikAset;
+                
+                infoNotif.innerText = "❌ Kegagalan Sistem: Anda TIDAK DIIZINKAN mengusulkan barang milik SKPD lain!";
+                infoNotif.style.color = "var(--danger-red)";
+                
+                bukaAksesForm(false);
+            }
+        })
+        .catch(err => {
+            infoNotif.innerText = "❌ Gagal memuat data dari Cloud Atisisbada. Periksa jaringan internet.";
+            infoNotif.style.color = "var(--danger-red)";
+            bukaAksesForm(false);
+        });
+}
+
+function bukaAksesForm(status) {
+    const elemenForm = [document.getElementById('jenis_usulan'), document.getElementById('rincian')];
+    const btnSubmit = document.getElementById('btnSubmit');
+    
+    elemenForm.forEach(el => {
+        if(status) {
+            el.removeAttribute('disabled');
+            el.classList.remove('readonly-field');
+        } else {
+            el.setAttribute('disabled', 'true');
+            el.classList.add('readonly-field');
+        }
+    });
+
+    if(status) {
+        btnSubmit.removeAttribute('disabled');
+        btnSubmit.style.backgroundColor = "var(--primary-orange)";
+        btnSubmit.style.cursor = "pointer";
+    } else {
+        btnSubmit.setAttribute('disabled', 'true');
+        btnSubmit.style.backgroundColor = "#BDC3C7";
+        btnSubmit.style.cursor = "not-allowed";
+    }
+}
+
+function resetForm() {
+    document.getElementById('nama_barang').value = "";
+    document.getElementById('skpd_pemilik').value = "";
+    document.getElementById('jenis_usulan').value = "";
+    document.getElementById('rincian').value = "";
+    bukaAksesForm(false);
+}
+
+function prosesKirim(event) {
+    event.preventDefault();
+    alert("Sukses! Usulan RKBMD/RKPBMD berhasil disimpan ke dalam antrean sistem SKPD Anda.");
+}
+</script>
+</body>
+</html>
